@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MPL – Neon Arena League</title>
+<style>
+:root{
+  --bg1:#0f2027;
+  --bg2:#203a43;
+  --bg3:#2c5364;
+  --neon:#3cff9e;
+  --card:rgba(255,255,255,0.08);
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family:system-ui,Segoe UI,Arial;
+  background:linear-gradient(135deg,var(--bg1),var(--bg2),var(--bg3));
+  color:#eafff2;
+  padding:30px;
+}
+h1{text-align:center;color:var(--neon)}
+h2{margin-top:50px;color:#b8ffd9}
+
+/* FIXTURES */
+#fixtures{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(330px,1fr));
+  gap:20px;
+}
+.fixture{
+  background:var(--card);
+  padding:16px;
+  border-radius:14px;
+}
+.match{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin:6px 0;
+}
+input.score{
+  width:36px;
+  background:#000;
+  border:1px solid #555;
+  border-radius:6px;
+  color:var(--neon);
+  text-align:center;
+}
+.bye{text-align:center;color:#ffd27d;font-style:italic}
+
+/* TABLE */
+table{
+  width:100%;
+  border-collapse:collapse;
+  margin-top:20px;
+  background:var(--card);
+}
+th,td{padding:10px;text-align:center}
+th{color:var(--neon);background:rgba(0,0,0,.35)}
+.gold{box-shadow:inset 0 0 15px gold}
+.silver{box-shadow:inset 0 0 15px silver}
+.bronze{box-shadow:inset 0 0 15px #cd7f32}
+
+.player{display:flex;align-items:center;gap:8px}
+.player img{width:30px;height:30px;border-radius:50%;object-fit:cover}
+.upload{cursor:pointer;color:#9cffc9}
+
+.form span{
+  display:inline-block;
+  width:14px;
+  height:14px;
+  border-radius:50%;
+  margin:0 1px;
+}
+.form .W{background:#2ecc71}
+.form .D{background:#f1c40f}
+.form .L{background:#e74c3c}
+
+/* ANALYTICS */
+#analytics{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+  gap:18px;
+  margin-top:20px;
+}
+.card{
+  background:rgba(255,255,255,0.1);
+  border-radius:14px;
+  padding:16px;
+}
+.card h3{margin-top:0;color:var(--neon)}
+.metric{display:flex;justify-content:space-between;margin:4px 0}
+.good{color:#2ecc71}
+.bad{color:#ff6b6b}
+</style>
+</head>
+<body>
+
+<h1>🏆 MPL – Neon Arena League</h1>
+
+<h2>Fixtures</h2>
+<div id="fixtures"></div>
+
+<h2>League Table</h2>
+<table>
+<thead>
+<tr>
+<th>#</th><th>Player</th><th>P</th><th>W</th><th>D</th><th>L</th>
+<th>F</th><th>A</th><th>GD</th><th>Pts</th><th>Form</th>
+</tr>
+</thead>
+<tbody id="tableBody"></tbody>
+</table>
+
+<h2>📊 Advanced Analytics Board</h2>
+<div id="analytics"></div>
+
+<script>
+/* ---------- DATA ---------- */
+const players=[
+"Abdullah","Shaooly","Anas","Daf","Isam","Mazen","Monti","Fikry",
+"Prtc. Tariq","K Haider","Moaiad","Alnagar",
+"Mohammed","Moawia","Wd Hazim","M Haider","Gustavoo","Madridi",
+"Omar","A Faisal","Hammad","O Haider","Ehab","Yousuf A","Ghassan"
+];
+
+const gw1Matches=[
+["Mohammed",7,"Moawia",7],
+["Wd Hazim",9,"M Haider",10],
+["Gustavoo",8,"Madridi",10],
+["Omar",13,"A Faisal",13],
+["Hammad",8,"O Haider",11],
+["Ehab",9,"Yousuf A",12],
+["Abdullah",15,"Shaooly",10],
+["Anas",6,"Daf",14],
+["Isam",14,"Mazen",14],
+["Monti",5,"Fikry",13],
+["Prtc. Tariq",10,"K Haider",7],
+["Moaiad",14,"Alnagar",6]
+];
+
+/* ---------- ROUND ROBIN ---------- */
+function roundRobin(list){
+  let t=[...list];
+  if(t.length%2)t.push("BYE");
+  const rounds=t.length-1,half=t.length/2;
+  const out=[];
+  for(let r=0;r<rounds;r++){
+    const matches=[];let bye=null;
+    for(let i=0;i<half;i++){
+      const a=t[i],b=t[t.length-1-i];
+      if(a==="BYE") bye=b;
+      else if(b==="BYE") bye=a;
+      else matches.push([a,"",b,""]);
+    }
+    out.push({matches,bye});
+    t.splice(1,0,t.pop());
+  }
+  return out;
+}
+
+const fixtures=roundRobin(players);
+fixtures[0]={matches:gw1Matches,bye:"Ghassan"};
+
+/* ---------- STATS ---------- */
+const stats={},h2h={};
+players.forEach(p=>{
+  stats[p]={P:0,W:0,D:0,L:0,F:0,A:0,Pts:0,form:[],img:null};
+  h2h[p]={};
+});
+
+/* ---------- STORAGE ---------- */
+function save(){localStorage.setItem("mpl",JSON.stringify({fixtures,stats}))}
+function load(){
+  const d=JSON.parse(localStorage.getItem("mpl"));
+  if(!d)return;
+  d.fixtures.forEach((g,i)=>fixtures[i].matches=g.matches);
+  Object.assign(stats,d.stats);
+}
+
+/* ---------- FIXTURES ---------- */
+function renderFixtures(){
+  const f=document.getElementById("fixtures");
+  f.innerHTML="";
+  fixtures.forEach((gw,i)=>{
+    const d=document.createElement("div");
+    d.className="fixture";
+    d.innerHTML=`<b>GW ${i+1}</b>`;
+    gw.matches.forEach((m,idx)=>{
+      d.innerHTML+=`
+      <div class="match">
+        ${m[0]}
+        <span>
+          <input class="score" data-g="${i}" data-m="${idx}" data-s="h" value="${m[1]}"> -
+          <input class="score" data-g="${i}" data-m="${idx}" data-s="a" value="${m[3]}">
+        </span>
+        ${m[2]}
+      </div>`;
+    });
+    d.innerHTML+=`<div class="bye">BYE: ${gw.bye}</div>`;
+    f.appendChild(d);
+  });
+
+  document.querySelectorAll(".score").forEach(i=>{
+    i.oninput=()=>{
+      const g=i.dataset.g,m=i.dataset.m;
+      fixtures[g].matches[m][i.dataset.s==="h"?1:3]=i.value;
+      update();save();
+    };
+  });
+}
+
+/* ---------- TABLE ---------- */
+function renderTable(){
+  const tb=document.getElementById("tableBody");
+  tb.innerHTML="";
+  const sorted=[...players].sort((a,b)=>{
+    const A=stats[a],B=stats[b];
+    const hA=h2h[a][b]||{pts:0,gd:0};
+    const hB=h2h[b][a]||{pts:0,gd:0};
+    return B.Pts-A.Pts||hB.pts-hA.pts||hB.gd-hA.gd||(B.F-B.A)-(A.F-A.A)||B.F-A.F;
+  });
+
+  sorted.forEach((n,i)=>{
+    const s=stats[n];
+    const tr=document.createElement("tr");
+    if(i===0)tr.className="gold";
+    if(i===1)tr.className="silver";
+    if(i===2)tr.className="bronze";
+    tr.innerHTML=`
+    <td>${i+1}</td>
+    <td class="player">
+      ${s.img?`<img src="${s.img}">`:""}
+      ${n}${!s.img?` <span class="upload" data-p="${n}">📷</span>`:""}
+    </td>
+    <td>${s.P}</td><td>${s.W}</td><td>${s.D}</td><td>${s.L}</td>
+    <td>${s.F}</td><td>${s.A}</td><td>${s.F-s.A}</td>
+    <td>${s.Pts}</td>
+    <td class="form">${s.form.map(r=>`<span class="${r}"></span>`).join("")}</td>`;
+    tb.appendChild(tr);
+  });
+
+  document.querySelectorAll(".upload").forEach(u=>{
+    u.onclick=()=>{
+      const input=document.createElement("input");
+      input.type="file";input.accept="image/*";
+      input.onchange=e=>{
+        const img=new Image(),r=new FileReader();
+        r.onload=ev=>{
+          img.onload=()=>{
+            const c=document.createElement("canvas");
+            c.width=c.height=64;
+            c.getContext("2d").drawImage(img,0,0,64,64);
+            stats[u.dataset.p].img=c.toDataURL("image/jpeg",0.7);
+            save();renderTable();
+          };
+          img.src=ev.target.result;
+        };
+        r.readAsDataURL(e.target.files[0]);
+      };
+      input.click();
+    };
+  });
+}
+
+/* ---------- ANALYTICS ---------- */
+function renderAnalytics(){
+  let bestAtk=["",0],bestDef=["",999],worstDef=["",0];
+  let draws=["",0],eff=["",0],unlucky=["",0];
+  let form5=["",0],bigWin=["",0];
+
+  players.forEach(p=>{
+    const s=stats[p];
+    if(s.F>bestAtk[1])bestAtk=[p,s.F];
+    if(s.P>0 && s.A<bestDef[1])bestDef=[p,s.A];
+    if(s.A>worstDef[1])worstDef=[p,s.A];
+    if(s.D>draws[1])draws=[p,s.D];
+
+    const last5=s.form.slice(-5).reduce((a,r)=>a+(r==="W"?3:r==="D"?1:0),0);
+    if(last5>form5[1])form5=[p,last5];
+
+    const e=s.P? (s.Pts/s.P):0;
+    if(e>eff[1])eff=[p,e.toFixed(2)];
+
+    if(s.F>=15 && s.Pts<=3)unlucky=[p,s.F];
+  });
+
+  fixtures.forEach(gw=>{
+    gw.matches.forEach(m=>{
+      if(m[1]===""||m[3]==="")return;
+      const gd=Math.abs(m[1]-m[3]);
+      if(gd>bigWin[1])bigWin=[`${m[0]} vs ${m[2]}`,gd];
+    });
+  });
+
+  document.getElementById("analytics").innerHTML=`
+  <div class="card"><h3>🥅 Best Attack</h3><div class="metric"><span>${bestAtk[0]}</span><span class="good">${bestAtk[1]}</span></div></div>
+  <div class="card"><h3>🧤 Best Defense</h3><div class="metric"><span>${bestDef[0]}</span><span class="good">${bestDef[1]}</span></div></div>
+  <div class="card"><h3>🔥 Best Form (5)</h3><div class="metric"><span>${form5[0]}</span><span class="good">${form5[1]} pts</span></div></div>
+  <div class="card"><h3>⚖️ Draw Masters</h3><div class="metric"><span>${draws[0]}</span><span>${draws[1]}</span></div></div>
+  <div class="card"><h3>💣 Biggest Win</h3><div class="metric"><span>${bigWin[0]}</span><span class="good">+${bigWin[1]}</span></div></div>
+  <div class="card"><h3>📉 Worst Defense</h3><div class="metric"><span>${worstDef[0]}</span><span class="bad">${worstDef[1]}</span></div></div>
+  <div class="card"><h3>🏆 Efficiency</h3><div class="metric"><span>${eff[0]}</span><span class="good">${eff[1]}</span></div></div>
+  <div class="card"><h3>😬 Unlucky King</h3><div class="metric"><span>${unlucky[0]}</span><span class="bad">${unlucky[1]} goals</span></div></div>`;
+}
+
+/* ---------- UPDATE ---------- */
+function update(){
+  players.forEach(p=>{
+    const img=stats[p].img;
+    stats[p]={P:0,W:0,D:0,L:0,F:0,A:0,Pts:0,form:[],img};
+    h2h[p]={};
+  });
+
+  fixtures.forEach(gw=>{
+    gw.matches.forEach(m=>{
+      if(m[1]===""||m[3]==="")return;
+      const h=+m[1],a=+m[3],H=m[0],A=m[2];
+      stats[H].P++;stats[A].P++;
+      stats[H].F+=h;stats[H].A+=a;
+      stats[A].F+=a;stats[A].A+=h;
+      h2h[H][A]??={pts:0,gd:0};
+      h2h[A][H]??={pts:0,gd:0};
+      h2h[H][A].gd+=h-a;h2h[A][H].gd+=a-h;
+
+      if(h>a){stats[H].W++;stats[H].Pts+=3;stats[H].form.push("W");stats[A].L++;stats[A].form.push("L");h2h[H][A].pts+=3}
+      else if(a>h){stats[A].W++;stats[A].Pts+=3;stats[A].form.push("W");stats[H].L++;stats[H].form.push("L");h2h[A][H].pts+=3}
+      else{stats[H].D++;stats[A].D++;stats[H].Pts++;stats[A].Pts++;stats[H].form.push("D");stats[A].form.push("D");h2h[H][A].pts++;h2h[A][H].pts++}
+    });
+  });
+
+  renderTable();
+  renderAnalytics();
+}
+
+/* ---------- INIT ---------- */
+load();
+renderFixtures();
+update();
+</script>
+</body>
+</html>
